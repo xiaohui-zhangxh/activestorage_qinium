@@ -23,6 +23,14 @@ module ActiveStorage
       end
     end
 
+    def http_method_for_direct_upload
+      'POST'
+    end
+
+    def http_response_type_for_direct_upload
+      'json'
+    end
+
     def form_data_for_direct_upload(key, expires_in:, content_type:, content_length:, checksum:)
       put_policy = Qinium::PutPolicy.new(config, key: key, expires_in: expires_in)
       put_policy.fsize_limit = content_length.to_i + 1000
