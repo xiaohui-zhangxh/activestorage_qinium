@@ -1,3 +1,5 @@
+require 'open-uri'
+require 'active_storage/analyzer/qinium_image_analyzer'
 module ActiveStorage
   class Service::QiniumService < Service
     attr_reader :qiniu
@@ -15,7 +17,7 @@ module ActiveStorage
       @qiniu = Qinium.new(options)
     end
 
-    def url_for_direct_upload(key, expires_in:, content_type:, content_length:, checksum:)
+    def url_for_direct_upload(key, expires_in:, content_type:, content_length:, checksum:, custom_metadata:)
       instrument :url, key: key do |payload|
         url = config.up_host
         payload[:url] = url
@@ -31,7 +33,7 @@ module ActiveStorage
       'json'
     end
 
-    def form_data_for_direct_upload(key, expires_in:, content_type:, content_length:, checksum:)
+    def form_data_for_direct_upload(key, expires_in:, content_type:, content_length:, checksum:, **)
       put_policy = Qinium::PutPolicy.new(config, key: key, expires_in: expires_in)
       put_policy.fsize_limit = content_length.to_i + 1000
       put_policy.mime_limit = content_type
@@ -39,7 +41,8 @@ module ActiveStorage
       put_policy.insert_only = 1
       {
         key: key,
-        token: put_policy.to_token
+        token: put_policy.to_token,
+        ':file': 'file'
       }
     end
 

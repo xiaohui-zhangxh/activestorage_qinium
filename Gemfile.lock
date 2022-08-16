@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    activestorage_qinium (0.1.0)
+    activestorage_qinium (0.1.1)
       qinium (~> 0.1.1)
 
 GEM
