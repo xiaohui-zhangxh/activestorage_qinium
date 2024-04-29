@@ -36,7 +36,12 @@ module ActiveStorage
     def form_data_for_direct_upload(key, expires_in:, content_type:, content_length:, checksum:, **)
       put_policy = Qinium::PutPolicy.new(config, key: key, expires_in: expires_in)
       put_policy.fsize_limit = content_length.to_i + 1000
-      put_policy.mime_limit = content_type
+      # OPTIMIZE: 暂时关闭文件类型限制，避免 xmind 文件无法上传
+      if content_type.to_s.start_with?('application/')
+        put_policy.mime_limit = nil
+      else
+        put_policy.mime_limit = content_type
+      end
       put_policy.detect_mime = 1
       put_policy.insert_only = 1
       {
