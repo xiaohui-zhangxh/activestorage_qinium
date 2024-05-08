@@ -5,7 +5,7 @@ module ActiveStorage
     attr_reader :qiniu
 
     delegate :config, :client, to: :qiniu
-    delegate :settings, :bucket_private, :bucket, :access_key, :secret_key, :domain,
+    delegate :settings, :public, :bucket, :access_key, :secret_key, :domain,
               :protocol, :put_policy_options,
              to: :config
 
@@ -127,15 +127,16 @@ module ActiveStorage
                 "attname=#{attname}"
               end
 
-        url = if bucket_private
+        url = if public
+                url_encoded_key = key.split('/').map { |x| CGI.escape(x) }.join('/')
+                ["#{protocol}://#{domain}/#{url_encoded_key}", fop].compact.join('?')
+              else
                 expires_in = options[:expires_in] ||
                              Rails.application.config.active_storage.service_urls_expire_in ||
                              3600
-                qiniu.auth.authorize_download_url(settings, domain, key,
+                Qinium::Auth.authorize_download_url(domain, key,
+                                                  access_key, secret_key,
                                                   schema: protocol, fop: fop, expires_in: expires_in)
-              else
-                url_encoded_key = key.split('/').map { |x| CGI.escape(x) }.join('/')
-                ["#{protocol}://#{domain}/#{url_encoded_key}", fop].compact.join('?')
               end
 
         payload[:url] = url
