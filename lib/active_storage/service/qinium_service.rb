@@ -1,12 +1,12 @@
-require 'open-uri'
-require 'active_storage/analyzer/qinium_image_analyzer'
+require "open-uri"
+require "active_storage/analyzer/qinium_image_analyzer"
 module ActiveStorage
   class Service::QiniumService < Service
     attr_reader :qiniu
 
     delegate :config, :client, to: :qiniu
-    delegate :settings, :public, :bucket, :access_key, :secret_key, :domain,
-              :protocol, :put_policy_options,
+    delegate :settings, :bucket, :access_key, :secret_key, :domain,
+             :protocol, :put_policy_options,
              to: :config
 
     def self.analyzers
@@ -26,11 +26,11 @@ module ActiveStorage
     end
 
     def http_method_for_direct_upload
-      'POST'
+      "POST"
     end
 
     def http_response_type_for_direct_upload
-      'json'
+      "json"
     end
 
     def form_data_for_direct_upload(key, expires_in:, content_type:, content_length:, checksum:, **)
@@ -43,7 +43,7 @@ module ActiveStorage
       {
         key: key,
         token: put_policy.to_token,
-        ':file': 'file'
+        ':file': "file"
       }
     end
 
@@ -58,19 +58,19 @@ module ActiveStorage
         host = nil
         while (blk = io.read(config.block_size))
           data = upload_blk(blk, token: up_token, host: host)
-          ctx = data.fetch('ctx')
-          host = data.fetch('host')
+          ctx = data.fetch("ctx")
+          host = data.fetch("host")
           file_size += blk.size
           blocks.push(ctx)
         end
 
-        _code, data, _headers = qiniu.object.mkfile(token: up_token, file_size: file_size, key: key, mime_type: content_type, blocks: blocks)
+        _code, data, _headers = qiniu.object.mkfile(token: up_token, file_size: file_size, key: key,
+                                                    mime_type: content_type, blocks: blocks)
         data
       end
     end
 
-    def update_metadata(key, **metadata)
-    end
+    def update_metadata(key, **metadata); end
 
     def download(key)
       if block_given?
@@ -93,7 +93,7 @@ module ActiveStorage
         uri = URI(url(key, disposition: :attachment))
         Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == "https") do |client|
           client.get(uri,
-                     'Range' => "bytes=#{range.begin}-#{range.exclude_end? ? range.end - 1 : range.end}").body
+                     "Range" => "bytes=#{range.begin}-#{range.exclude_end? ? range.end - 1 : range.end}").body
         end
       end
     end
@@ -106,7 +106,7 @@ module ActiveStorage
 
     def delete_prefixed(prefix)
       instrument :delete_prefixed, prefix: prefix do
-        items_for(prefix).each { |item| delete item['key'] }
+        items_for(prefix).each { |item| delete item["key"] }
       end
     end
 
@@ -122,21 +122,21 @@ module ActiveStorage
       instrument :url, key: key do |payload|
         fop = if options[:fop].present? # 内容预处理
                 options[:fop]
-              elsif options[:disposition].to_s == 'attachment' # 下载附件
-                attname = URI.encode_www_form_component "#{options[:filename] || key}"
+              elsif options[:disposition].to_s == "attachment" # 下载附件
+                attname = URI.encode_www_form_component (options[:filename] || key).to_s
                 "attname=#{attname}"
               end
 
-        url = if public
-                url_encoded_key = key.split('/').map { |x| CGI.escape(x) }.join('/')
-                ["#{protocol}://#{domain}/#{url_encoded_key}", fop].compact.join('?')
+        url = if config.public
+                url_encoded_key = key.split("/").map { |x| CGI.escape(x) }.join("/")
+                ["#{protocol}://#{domain}/#{url_encoded_key}", fop].compact.join("?")
               else
                 expires_in = options[:expires_in] ||
                              Rails.application.config.active_storage.service_urls_expire_in ||
                              3600
                 Qinium::Auth.authorize_download_url(domain, key,
-                                                  access_key, secret_key,
-                                                  schema: protocol, fop: fop, expires_in: expires_in)
+                                                    access_key, secret_key,
+                                                    schema: protocol, fop: fop, expires_in: expires_in)
               end
 
         payload[:url] = url
@@ -146,9 +146,9 @@ module ActiveStorage
 
     private
 
-    def items_for(prefix = '')
+    def items_for(prefix = "")
       _code, data, _headers = qiniu.object.list(prefix: prefix)
-      data['items']
+      data["items"]
     end
 
     def upload_blk(blk, token:, host: nil)
@@ -160,8 +160,9 @@ module ActiveStorage
 
     def with_retries(max: 3)
       yield
-    rescue
+    rescue StandardError
       raise if max.zero?
+
       max -= 1
       retry
     end
