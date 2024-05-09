@@ -1,11 +1,7 @@
 # frozen_string_literal: true
 
-RSpec.describe ActivestorageQinium do
+RSpec.describe ActiveStorageQinium do
   it "has a version number" do
-    expect(ActivestorageQinium::VERSION).not_to be nil
-  end
-
-  it "does something useful" do
-    expect(false).to eq(true)
+    expect(ActiveStorageQinium::VERSION).not_to be nil
   end
 end

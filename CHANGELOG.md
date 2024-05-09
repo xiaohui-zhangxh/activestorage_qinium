@@ -4,6 +4,6 @@
 
 - Initial release
 
-## [0.2.0] - 2024-05-09
+## [0.2.1] - 2024-05-09
 
 - Support private download url
