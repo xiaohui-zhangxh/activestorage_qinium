@@ -110,6 +110,12 @@ module ActiveStorage
       end
     end
 
+    def fetch(target_url, key)
+      instrument :fetch, target_url: target_url, key: key do
+        qiniu.object.fetch(target_url, key)
+      end
+    end
+
     def exist?(key)
       instrument :exist, key: key do |payload|
         answer = items_for(key).any?
