@@ -116,6 +116,12 @@ module ActiveStorage
       end
     end
 
+    def copy(source_bucket, source_key, target_bucket, target_key)
+      instrument :fetch, source_bucket: source_bucket, source_key: source_key, target_bucket: target_bucket, target_key: target_key do
+        qiniu.object.copy(source_bucket, source_key, target_bucket, target_key)
+      end
+    end
+
     def exist?(key)
       instrument :exist, key: key do |payload|
         answer = items_for(key).any?
