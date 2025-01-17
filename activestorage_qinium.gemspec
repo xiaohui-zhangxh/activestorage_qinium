@@ -26,5 +26,5 @@ Gem::Specification.new do |spec|
 
   spec.require_paths = ["lib"]
 
-  spec.add_dependency "qinium", "~> 0.3.0"
+  spec.add_dependency "qinium", "~> 0.4.0"
 end
