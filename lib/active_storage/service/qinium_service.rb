@@ -10,7 +10,7 @@ module ActiveStorage
              to: :config
 
     def self.analyzers
-      [ActiveStorage::Analyzer::QiniumImageAnalyzer]
+      @analyzers ||= [ActiveStorage::Analyzer::QiniumImageAnalyzer]
     end
 
     def initialize(options)
@@ -132,25 +132,46 @@ module ActiveStorage
 
     def url(key, **options)
       instrument :url, key: key do |payload|
-        fop = if options[:fop].present? # 内容预处理
-                options[:fop]
-              elsif options[:disposition].to_s == "attachment" # 下载附件
-                attname = URI.encode_www_form_component (options[:filename] || key).to_s
-                "attname=#{attname}"
-              end
-
+        # 根据七牛云文档：https://developer.qiniu.com/kodo/1659/download-setting
+        # 1. 使用 attname 参数可以让浏览器下载而不是打开
+        # 2. 使用 response-content-disposition 参数可以自定义 Content-Disposition 响应头
+        # 3. 使用 response-content-type 参数可以自定义 Content-Type 响应头
+  
+        disposition = options[:disposition].to_s.downcase
+        content_type = options[:content_type]
+  
+        # 构建查询参数
+        query_params = []
+  
+        if options[:fop].present? # 内容预处理
+          query_params << options[:fop]
+        elsif disposition == "attachment" # 下载附件
+          attname = URI.encode_www_form_component (options[:filename] || key).to_s
+          query_params << "attname=#{attname}"
+        elsif disposition == "inline" # 预览（inline）
+          # 明确设置 Content-Disposition 为 inline，确保浏览器预览而不是下载
+          query_params << "response-content-disposition=inline"
+          # 如果提供了 content_type，也设置 Content-Type 响应头
+          # 这对于 PDF 文件特别重要，确保 Content-Type: application/pdf
+          query_params << "response-content-type=#{URI.encode_www_form_component(content_type)}" if content_type.present?
+        end
+  
+        # 构建 URL
         url = if config.public
                 url_encoded_key = key.split("/").map { |x| CGI.escape(x) }.join("/")
-                ["#{protocol}://#{domain}/#{url_encoded_key}", fop].compact.join("?")
+                base_url = "#{protocol}://#{domain}/#{url_encoded_key}"
+                query_params.any? ? "#{base_url}?#{query_params.join('&')}" : base_url
               else
                 expires_in = options[:expires_in] ||
                              Rails.application.config.active_storage.service_urls_expire_in ||
                              3600
+                # 对于私有资源，需要将查询参数传递给授权 URL 生成
+                fop = query_params.join('&') if query_params.any?
                 Qinium::Auth.authorize_download_url(domain, key,
                                                     access_key, secret_key,
                                                     schema: protocol, fop: fop, expires_in: expires_in)
               end
-
+  
         payload[:url] = url
         url
       end
