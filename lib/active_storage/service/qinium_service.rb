@@ -117,7 +117,8 @@ module ActiveStorage
     end
 
     def copy(source_bucket, source_key, target_bucket, target_key)
-      instrument :fetch, source_bucket: source_bucket, source_key: source_key, target_bucket: target_bucket, target_key: target_key do
+      instrument :fetch, source_bucket: source_bucket, source_key: source_key, target_bucket: target_bucket,
+                         target_key: target_key do
         qiniu.object.copy(source_bucket, source_key, target_bucket, target_key)
       end
     end
@@ -136,42 +137,85 @@ module ActiveStorage
         # 1. 使用 attname 参数可以让浏览器下载而不是打开
         # 2. 使用 response-content-disposition 参数可以自定义 Content-Disposition 响应头
         # 3. 使用 response-content-type 参数可以自定义 Content-Type 响应头
-  
-        disposition = options[:disposition].to_s.downcase
+        # 4. 使用 response-cache-control 参数可以自定义 Cache-Control 响应头
+        # 5. 使用 response-content-encoding 参数可以自定义 Content-Encoding 响应头
+        # 6. 使用 response-content-language 参数可以自定义 Content-Language 响应头
+        # 7. 使用 response-expires 参数可以自定义 Expires 响应头
+        # 8. 使用 X-Qiniu-Traffic-Limit 参数可以限制下载速度
+
+        disposition = options[:disposition]
         content_type = options[:content_type]
-  
+
         # 构建查询参数
         query_params = []
-  
-        if options[:fop].present? # 内容预处理
-          query_params << options[:fop]
-        elsif disposition == "attachment" # 下载附件
-          attname = URI.encode_www_form_component (options[:filename] || key).to_s
-          query_params << "attname=#{attname}"
-        elsif disposition == "inline" # 预览（inline）
-          # 明确设置 Content-Disposition 为 inline，确保浏览器预览而不是下载
-          query_params << "response-content-disposition=inline"
-          # 如果提供了 content_type，也设置 Content-Type 响应头
-          # 这对于 PDF 文件特别重要，确保 Content-Type: application/pdf
-          query_params << "response-content-type=#{URI.encode_www_form_component(content_type)}" if content_type.present?
+
+        # 内容预处理（图片处理、视频处理等）
+        query_params << options[:fop] if options[:fop].present?
+
+        # 处理 disposition 相关参数
+        if disposition.to_s == "attachment" # 下载附件
+          # attname：触发「下载」行为；部分节点仍用对象 key 填 Content-Disposition，须同时传 response-content-disposition。
+          # 文档：https://developer.qiniu.com/kodo/1659/download-setting
+          display_name = (options[:filename].presence || File.basename(key)).to_s
+          query_params << "attname=#{URI.encode_www_form_component(display_name)}"
+          cd = ActionDispatch::Http::ContentDisposition.format(
+            disposition: "attachment",
+            filename: ActiveStorage::Filename.new(display_name).sanitized
+          )
+          query_params << "response-content-disposition=#{ERB::Util.url_encode(cd)}"
+          # elsif disposition.to_s == "inline" # 预览（inline）
+          #   # 明确设置 Content-Disposition 为 inline，确保浏览器预览而不是下载
+          #   query_params << "response-content-disposition=inline"
         end
-  
+
+        # 自定义响应头参数
+        # 注意：这些参数只有请求成功（即返回码为 200 OK）才会生效
+        # 且不支持在匿名访问的下载请求中自定义标准响应头
+        if options[:response_content_type].present? || content_type.present?
+          value = options[:response_content_type] || content_type
+          query_params << "response-content-type=#{URI.encode_www_form_component(value)}"
+        end
+
+        if options[:response_cache_control].present?
+          query_params << "response-cache-control=#{URI.encode_www_form_component(options[:response_cache_control])}"
+        end
+
+        if options[:response_content_disposition].present?
+          query_params << "response-content-disposition=#{ERB::Util.url_encode(options[:response_content_disposition])}"
+        end
+
+        if options[:response_content_encoding].present?
+          query_params << "response-content-encoding=#{URI.encode_www_form_component(options[:response_content_encoding])}"
+        end
+
+        if options[:response_content_language].present?
+          query_params << "response-content-language=#{URI.encode_www_form_component(options[:response_content_language])}"
+        end
+
+        if options[:response_expires].present?
+          query_params << "response-expires=#{URI.encode_www_form_component(options[:response_expires])}"
+        end
+
+        # 下载限速：X-Qiniu-Traffic-Limit
+        # 取值范围为 819200 ~ 838860800，单位为 bit/s
+        query_params << "X-Qiniu-Traffic-Limit=#{options[:traffic_limit].to_i}" if options[:traffic_limit].present?
+
         # 构建 URL
         url = if config.public
                 url_encoded_key = key.split("/").map { |x| CGI.escape(x) }.join("/")
                 base_url = "#{protocol}://#{domain}/#{url_encoded_key}"
-                query_params.any? ? "#{base_url}?#{query_params.join('&')}" : base_url
+                query_params.any? ? "#{base_url}?#{query_params.join("&")}" : base_url
               else
                 expires_in = options[:expires_in] ||
                              Rails.application.config.active_storage.service_urls_expire_in ||
                              3600
                 # 对于私有资源，需要将查询参数传递给授权 URL 生成
-                fop = query_params.join('&') if query_params.any?
+                fop = query_params.join("&") if query_params.any?
                 Qinium::Auth.authorize_download_url(domain, key,
                                                     access_key, secret_key,
                                                     schema: protocol, fop: fop, expires_in: expires_in)
               end
-  
+
         payload[:url] = url
         url
       end
