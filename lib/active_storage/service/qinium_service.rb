@@ -158,11 +158,11 @@ module ActiveStorage
           # 文档：https://developer.qiniu.com/kodo/1659/download-setting
           display_name = (options[:filename].presence || File.basename(key)).to_s
           query_params << "attname=#{URI.encode_www_form_component(display_name)}"
-          cd = ActionDispatch::Http::ContentDisposition.format(
-            disposition: "attachment",
-            filename: ActiveStorage::Filename.new(display_name).sanitized
-          )
-          query_params << "response-content-disposition=#{ERB::Util.url_encode(cd)}"
+          # cd = ActionDispatch::Http::ContentDisposition.format(
+          #   disposition: "attachment",
+          #   filename: ActiveStorage::Filename.new(display_name).sanitized
+          # )
+          # query_params << "response-content-disposition=#{ERB::Util.url_encode(cd)}"
           # elsif disposition.to_s == "inline" # 预览（inline）
           #   # 明确设置 Content-Disposition 为 inline，确保浏览器预览而不是下载
           #   query_params << "response-content-disposition=inline"
