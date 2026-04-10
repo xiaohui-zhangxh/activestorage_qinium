@@ -1,5 +1,34 @@
 require "open-uri"
 require "active_storage/analyzer/qinium_image_analyzer"
+
+# Optional +upload_host+ in Active Storage service config: fixed upload base URL (e.g. Qiniu transfer acceleration).
+# When blank, Qinium::Config#up_host uses the UC API as before.
+module ActiveStorage
+  module QiniumUploadHostConfig
+    def up_host(bucket = self.bucket)
+      raw = self[:upload_host]
+      if raw.present?
+        normalize_qiniu_upload_base_url(raw.to_s)
+      else
+        super
+      end
+    end
+
+    private
+
+    def normalize_qiniu_upload_base_url(url)
+      s = url.strip.sub(%r{/+\z}, "")
+      return s if s.match?(%r{\Ahttps?://}i)
+
+      proto = (protocol || :https).to_s
+      proto = "https" unless proto == "http"
+      "#{proto}://#{s.sub(%r{\A//+}, "")}"
+    end
+  end
+end
+
+Qinium::Config.prepend(ActiveStorage::QiniumUploadHostConfig) unless Qinium::Config.ancestors.include?(ActiveStorage::QiniumUploadHostConfig)
+
 module ActiveStorage
   class Service::QiniumService < Service
     attr_reader :qiniu
